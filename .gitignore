@@ -165,8 +165,7 @@ Temporary Items
 *.hdf5
 *.db
 
-# Data directories
-data/
+# Data directories (excluding our main data folder)
 datasets/
 raw_data/
 processed_data/
