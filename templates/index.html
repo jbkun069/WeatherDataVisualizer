@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Weather Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Indian Weather Dashboard</h1>
+        <p>An interactive visualization of weather data across India.</p>
+    </header>
+
+    <main class="container">
+        <div class="plot-container" id="plot-temp-dist"></div>
+        <div class="plot-container" id="plot-monthly-precip"></div>
+        <div class="plot-container" id="plot-correlation"></div>
+        <div class="plot-container" id="plot-seasonal-variation"></div>
+    </main>
+
+    <footer>
+        <p>Weather Data Visualizer</p>
+    </footer>
+
+    <script>
+        $(document).ready(function(){
+            // Load and display the plots
+            $.get('/plot/temp_dist_by_region', function(data){
+                var fig = JSON.parse(data);
+                Plotly.newPlot('plot-temp-dist', fig.data, fig.layout);
+            });
+
+            $.get('/plot/monthly_precipitation', function(data){
+                var fig = JSON.parse(data);
+                Plotly.newPlot('plot-monthly-precip', fig.data, fig.layout);
+            });
+
+            $.get('/plot/correlation_heatmap', function(data){
+                var fig = JSON.parse(data);
+                Plotly.newPlot('plot-correlation', fig.data, fig.layout);
+            });
+
+            $.get('/plot/seasonal_temp_variation', function(data){
+                var fig = JSON.parse(data);
+                Plotly.newPlot('plot-seasonal-variation', fig.data, fig.layout);
+            });
+        });
+    </script>
+</body>
+</html>
