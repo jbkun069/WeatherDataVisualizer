@@ -1,90 +1,79 @@
 import pandas as pd
 import numpy as np
 
-def perform_eda(df):
+def get_analysis(df: pd.DataFrame) -> dict:
     """
-    Performs an exploratory data analysis on the given DataFrame.
-
+    Performs EDA on the provided dataframe and returns a dictionary of results.
+    
     Args:
-        df (pd.DataFrame): The input DataFrame.
+        df: A pandas DataFrame with weather data for a specific region.
+        
+    Returns:
+        A dictionary containing analysis results.
     """
-    # --- Data Cleaning and Preprocessing ---
-    print("--- Data Cleaning and Preprocessing ---")
-    df['Date'] = pd.to_datetime(df['Date'])
-    if df.duplicated().sum() > 0:
-        df.drop_duplicates(inplace=True)
-        print("Duplicate rows have been removed.")
-    else:
-        print("No duplicate rows found.")
-    print("\n" + "="*50 + "\n")
+    if df.empty:
+        return {"error": "No data available for analysis."}
 
-    # --- Basic Trends ---
-    print("--- Basic Trends (7-day rolling averages) ---")
-    # Sort by region and date to ensure correct rolling window application
-    df.sort_values(by=['Region', 'Date'], inplace=True)
+    # --- Convert Week to datetime if it's not already ---
+    if not np.issubdtype(df['Week'].dtype, np.datetime64):
+        df['Week'] = pd.to_datetime(df['Week'])
 
-    # Calculate rolling averages per region
-    df['temp_rolling_avg'] = df.groupby('Region')['Temperature_C'].rolling(window=7, min_periods=1).mean().reset_index(level=0, drop=True)
-    df['precip_rolling_avg'] = df.groupby('Region')['Precipitation_mm'].rolling(window=7, min_periods=1).mean().reset_index(level=0, drop=True)
+    # --- Summary Statistics ---
+    summary = df[["Temperature_C", "Humidity_percent", "Wind_Speed_kmh"]].describe().round(2)
+    summary_dict = summary.to_dict()
 
-    print("7-day rolling average for Temperature and Precipitation for the first 10 rows of 'Andhra Pradesh':")
-    print(df[df['Region'] == 'Andhra Pradesh'][['Date', 'Temperature_C', 'temp_rolling_avg', 'Precipitation_mm', 'precip_rolling_avg']].head(10))
-    print("\n" + "="*50 + "\n")
+    # --- Hottest / Coldest Weeks ---
+    hottest_week = df.loc[df["Temperature_C"].idxmax()]
+    coldest_week = df.loc[df["Temperature_C"].idxmin()]
+    
+    temperature_extremes = {
+        "hottest": {
+            "temp": hottest_week['Temperature_C'],
+            "week": hottest_week['Week'].strftime('%Y-%m-%d')
+        },
+        "coldest": {
+            "temp": coldest_week['Temperature_C'],
+            "week": coldest_week['Week'].strftime('%Y-%m-%d')
+        }
+    }
 
+    # --- Most Humid / Windiest ---
+    most_humid = df.loc[df["Humidity_percent"].idxmax()]
+    windiest = df.loc[df["Wind_Speed_kmh"].idxmax()]
 
-    # --- Event Counters ---
-    print("--- Event Counters ---")
-    # Define event thresholds
-    hot_day_threshold = 35  # degrees C
-    cold_day_threshold = 5   # degrees C
-    rainy_day_threshold = 2.5 # mm of precipitation
+    other_extremes = {
+        "most_humid": {
+            "value": most_humid["Humidity_percent"],
+            "week": most_humid["Week"].strftime('%Y-%m-%d'),
+        },
+        "windiest": {
+            "value": windiest["Wind_Speed_kmh"],
+            "week": windiest["Week"].strftime('%Y-%m-%d'),
+        }
+    }
 
-    # Count events
-    hot_days = df[df['Max_Temperature_C'] > hot_day_threshold]
-    cold_days = df[df['Min_Temperature_C'] < cold_day_threshold]
-    rainy_days = df[df['Precipitation_mm'] > rainy_day_threshold]
+    # --- Monthly Averages ---
+    df["Month"] = df["Week"].dt.month_name()
+    # Define the correct order of months
+    months_order = [
+        'January', 'February', 'March', 'April', 'May', 'June', 
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ]
+    # Use reindex to sort the monthly averages
+    monthly_avg = df.groupby("Month").agg({
+        "Temperature_C": "mean",
+        "Humidity_percent": "mean",
+        "Wind_Speed_kmh": "mean"
+    }).round(1).reindex(months_order).dropna()
+    
+    monthly_avg_dict = monthly_avg.to_dict('index')
 
-    print(f"Total number of hot days (Max Temp > {hot_day_threshold}°C): {len(hot_days)}")
-    print(f"Total number of cold days (Min Temp < {cold_day_threshold}°C): {len(cold_days)}")
-    print(f"Total number of rainy days (Precipitation > {rainy_day_threshold}mm): {len(rainy_days)}")
-    print("\n" + "="*50 + "\n")
+    analysis_results = {
+        "summary_stats": summary_dict,
+        "temperature_extremes": temperature_extremes,
+        "other_extremes": other_extremes,
+        "monthly_averages": monthly_avg_dict,
+        "record_count": len(df)
+    }
 
-    # --- Regional Comparison ---
-    print("--- Regional Comparison ---")
-    regional_summary = df.groupby('Region').agg(
-        avg_temp=('Temperature_C', 'mean'),
-        max_temp=('Max_Temperature_C', 'max'),
-        min_temp=('Min_Temperature_C', 'min'),
-        total_precip=('Precipitation_mm', 'sum'),
-        avg_wind_speed=('Wind_Speed_kmh', 'mean')
-    ).reset_index()
-
-    print("Hottest Regions (by max temperature recorded):")
-    print(regional_summary.nlargest(5, 'max_temp'))
-    print("\nColdest Regions (by min temperature recorded):")
-    print(regional_summary.nsmallest(5, 'min_temp'))
-    print("\nWettest Regions (by total annual precipitation):")
-    print(regional_summary.nlargest(5, 'total_precip'))
-    print("\n" + "="*50 + "\n")
-
-    # --- Time-Series Analysis (Monthly) ---
-    print("--- Time-Series Analysis (Monthly Aggregations) ---")
-    # Create a month period for grouping
-    df['month'] = df['Date'].dt.to_period('M')
-    monthly_summary = df.groupby('month').agg(
-        avg_temp=('Temperature_C', 'mean'),
-        total_precip=('Precipitation_mm', 'sum')
-    ).reset_index()
-    monthly_summary['month'] = monthly_summary['month'].astype(str)
-
-    print("Monthly average temperature and total precipitation for the entire dataset:")
-    print(monthly_summary)
-    print("\n" + "="*50 + "\n")
-
-try:
-    df = pd.read_csv('comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv')
-    perform_eda(df)
-except FileNotFoundError:
-    print("The file 'comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv' was not found.")
-except Exception as e:
-    print(f"An error occurred: {e}")
+    return analysis_results

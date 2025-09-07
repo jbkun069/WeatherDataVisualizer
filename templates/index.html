@@ -1,118 +1,306 @@
-
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indian Weather Data</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: sans-serif;
-        }
-        .container {
-            width: 80%;
-            margin: auto;
-        }
-        #state-select {
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Indian Weather Data</h1>
-        <label for="state-select">Select a State/UT:</label>
-        <select id="state-select">
-        </select>
 
-        <div class="charts">
-            <canvas id="temperature-chart"></canvas>
-            <canvas id="humidity-chart"></canvas>
-            <canvas id="wind-speed-chart"></canvas>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Indian Weather Analysis Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+
+<body>
+    <div class="container" role="main">
+        <h1>Indian Weather Analysis Dashboard</h1>
+
+        <!-- Control Section for Dropdowns -->
+        <div class="controls" aria-label="Data selection controls">
+            <div class="control-group">
+                <label for="state-select">1. Select a State or Union Territory</label>
+                <select id="state-select" disabled>
+                    <option>Loading states...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="month-select">2. Select a Month</label>
+                <select id="month-select" disabled style="display: none;">
+                    <option>Select a state first</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message" aria-live="assertive"></div>
+
+        <!-- Analysis Display Section -->
+        <div id="analysis-container" class="analysis-container" style="display: none;">
+             <h2>Analysis for <span id="analysis-region"></span></h2>
+             <div id="analysis-content" class="stats-grid">
+                <!-- Analysis content will be injected here by JS -->
+             </div>
+        </div>
+
+        <!-- Charts Display Section -->
+        <div id="charts-container" class="charts-container" style="display: none;">
+            <div class="chart-wrapper">
+                <canvas id="temperature-chart" aria-label="Average Temperature chart" role="img"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="humidity-chart" aria-label="Average Humidity chart" role="img"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="wind-speed-chart" aria-label="Average Wind Speed chart" role="img"></canvas>
+            </div>
         </div>
     </div>
 
     <script>
-        let weatherData = [];
-        let temperatureChart, humidityChart, windSpeedChart;
+        document.addEventListener('DOMContentLoaded', () => {
+            const stateSelect = document.getElementById('state-select');
+            const monthSelect = document.getElementById('month-select');
+            const statusMessage = document.getElementById('status-message');
+            
+            const analysisContainer = document.getElementById('analysis-container');
+            const analysisRegion = document.getElementById('analysis-region');
+            const analysisContent = document.getElementById('analysis-content');
 
-        const stateSelect = document.getElementById('state-select');
+            const chartsContainer = document.getElementById('charts-container');
+            let tempChart, humidityChart, windSpeedChart;
 
-        fetch('/data')
-            .then(response => response.json())
-            .then(data => {
-                weatherData = data;
-                const states = [...new Set(data.map(item => item['State/UT']))];
-                states.forEach(state => {
-                    const option = document.createElement('option');
-                    option.value = state;
-                    option.textContent = state;
-                    stateSelect.appendChild(option);
+            // --- Utility Functions ---
+            function showStatus(message, type = 'loading') {
+                statusMessage.textContent = message;
+                statusMessage.className = `status-message ${type}`;
+            }
+
+            function hideStatus() {
+                statusMessage.textContent = '';
+                statusMessage.className = 'status-message';
+            }
+
+            function resetUI() {
+                monthSelect.innerHTML = '<option>Select a state first</option>';
+                monthSelect.disabled = true;
+                monthSelect.style.display = 'none';
+
+                analysisContainer.style.display = 'none';
+                analysisContent.innerHTML = '';
+                
+                chartsContainer.style.display = 'none';
+                if (tempChart) tempChart.destroy();
+                if (humidityChart) humidityChart.destroy();
+                if (windSpeedChart) windSpeedChart.destroy();
+            }
+
+            // --- Data Fetching Functions ---
+            async function fetchStates() {
+                try {
+                    const response = await fetch('/states');
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const states = await response.json();
+
+                    stateSelect.innerHTML = '<option value="">-- Select a State --</option>';
+                    states.forEach(state => {
+                        const option = document.createElement('option');
+                        option.value = state;
+                        option.textContent = state;
+                        stateSelect.appendChild(option);
+                    });
+                    stateSelect.disabled = false;
+                } catch (error) {
+                    showStatus('Failed to load states. Please refresh the page.', 'error');
+                    console.error('Error fetching states:', error);
+                }
+            }
+            
+            async function fetchMonths(state) {
+                showStatus(`Loading months for ${state}...`);
+                try {
+                    const response = await fetch(`/months/${encodeURIComponent(state)}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const months = await response.json();
+                    
+                    monthSelect.innerHTML = '<option value="">-- Select a Month --</option>';
+                    months.forEach(month => {
+                        const option = document.createElement('option');
+                        option.value = month;
+                        option.textContent = month;
+                        monthSelect.appendChild(option);
+                    });
+                    monthSelect.disabled = false;
+                    monthSelect.style.display = 'block';
+                    hideStatus();
+                } catch (error) {
+                    showStatus(`Failed to load months for ${state}.`, 'error');
+                    console.error('Error fetching months:', error);
+                }
+            }
+            
+            async function fetchAnalysis(state) {
+                showStatus(`Analyzing data for ${state}...`);
+                try {
+                    const response = await fetch(`/analysis/${encodeURIComponent(state)}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    displayAnalysis(state, data);
+                    hideStatus();
+                } catch (error) {
+                    showStatus(`Failed to load analysis for ${state}.`, 'error');
+                    console.error('Error fetching analysis:', error);
+                }
+            }
+            
+            async function fetchChartData(state, month) {
+                 showStatus(`Loading weekly data for ${month}...`);
+                try {
+                    const response = await fetch(`/weekly_data/${encodeURIComponent(state)}/${encodeURIComponent(month)}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    updateCharts(state, month, data);
+                    hideStatus();
+                } catch (error) {
+                    showStatus(`Failed to load chart data for ${month}.`, 'error');
+                    console.error('Error fetching chart data:', error);
+                }
+            }
+
+
+            // --- UI Update Functions ---
+            function displayAnalysis(state, data) {
+                analysisRegion.textContent = state;
+                let content = '';
+
+                if (data.error) {
+                    content = `<p class="error">${data.error}</p>`;
+                } else {
+                    const hottest = data.temperature_extremes.hottest;
+                    const coldest = data.temperature_extremes.coldest;
+                    const windiest = data.other_extremes.windiest;
+                    const most_humid = data.other_extremes.most_humid;
+
+                    content += createStatCard('Hottest Week', `${hottest.temp}°C`, `on ${hottest.week}`);
+                    content += createStatCard('Coldest Week', `${coldest.temp}°C`, `on ${coldest.week}`);
+                    content += createStatCard('Windiest Week', `${windiest.value} km/h`, `on ${windiest.week}`);
+                    content += createStatCard('Most Humid Week', `${most_humid.value}%`, `on ${most_humid.week}`);
+                    content += createStatCard('Avg. Temp', `${data.summary_stats.Temperature_C['mean']}°C`, 'Annual Average');
+                    content += createStatCard('Total Weeks', data.record_count, 'of data recorded');
+                }
+                
+                analysisContent.innerHTML = content;
+                analysisContainer.style.display = 'block';
+            }
+
+            function createStatCard(title, value, context) {
+                return `
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">${title}</h3>
+                        <p class="stat-card-value">${value}</p>
+                        <p class="stat-card-context">${context}</p>
+                    </div>
+                `;
+            }
+
+            function updateCharts(state, month, data) {
+                chartsContainer.style.display = 'flex';
+                const commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, font: { size: 16 } }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Week' } },
+                        y: { beginAtZero: false, title: { display: true } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
+                };
+
+                // Temperature Chart
+                if (tempChart) tempChart.destroy();
+                tempChart = new Chart(document.getElementById('temperature-chart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.weeks,
+                        datasets: [{
+                            label: 'Avg Temperature (°C)',
+                            data: data.avg_temp,
+                            borderColor: '#e53e3e',
+                            backgroundColor: 'rgba(229, 62, 62, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { ...commonOptions, plugins: {...commonOptions.plugins, title: { ...commonOptions.plugins.title, text: `${state} - Temperature in ${month}` }}, scales: {...commonOptions.scales, y: {...commonOptions.scales.y, title: {text: 'Temperature (°C)'} } } }
                 });
-                updateCharts(states[0]);
+
+                // Humidity Chart
+                if (humidityChart) humidityChart.destroy();
+                humidityChart = new Chart(document.getElementById('humidity-chart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.weeks,
+                        datasets: [{
+                            label: 'Avg Humidity (%)',
+                            data: data.avg_humidity,
+                            borderColor: '#3182ce',
+                            backgroundColor: 'rgba(49, 130, 206, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { ...commonOptions, plugins: {...commonOptions.plugins, title: { ...commonOptions.plugins.title, text: `${state} - Humidity in ${month}` }}, scales: {...commonOptions.scales, y: {...commonOptions.scales.y, title: {text: 'Humidity (%)'}, min: 0, max: 100 } } }
+                });
+
+                // Wind Speed Chart
+                if (windSpeedChart) windSpeedChart.destroy();
+                windSpeedChart = new Chart(document.getElementById('wind-speed-chart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.weeks,
+                        datasets: [{
+                            label: 'Avg Wind Speed (km/h)',
+                            data: data.avg_wind_speed,
+                            borderColor: '#38a169',
+                            backgroundColor: 'rgba(56, 161, 105, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { ...commonOptions, plugins: {...commonOptions.plugins, title: { ...commonOptions.plugins.title, text: `${state} - Wind Speed in ${month}` }}, scales: {...commonOptions.scales, y: {...commonOptions.scales.y, title: {text: 'Wind Speed (km/h)'}, min: 0 } } }
+                });
+            }
+
+            // --- Event Listeners ---
+            stateSelect.addEventListener('change', (e) => {
+                const selectedState = e.target.value;
+                resetUI();
+                if (selectedState) {
+                    fetchMonths(selectedState);
+                    fetchAnalysis(selectedState);
+                }
             });
 
-        stateSelect.addEventListener('change', (event) => {
-            updateCharts(event.target.value);
+            monthSelect.addEventListener('change', (e) => {
+                const selectedMonth = e.target.value;
+                const selectedState = stateSelect.value;
+                 chartsContainer.style.display = 'none';
+                if (tempChart) tempChart.destroy();
+                if (humidityChart) humidityChart.destroy();
+                if (windSpeedChart) windSpeedChart.destroy();
+
+                if (selectedMonth && selectedState) {
+                    fetchChartData(selectedState, selectedMonth);
+                }
+            });
+
+            // --- Initial Load ---
+            fetchStates();
         });
-
-        function updateCharts(selectedState) {
-            const stateData = weatherData.filter(item => item['State/UT'] === selectedState);
-            const months = stateData.map(item => item['Month']);
-            const avgTemp = stateData.map(item => item['Average Temperature (Celsius)']);
-            const avgHumidity = stateData.map(item => item['Average Humidity (%)']);
-            const avgWindSpeed = stateData.map(item => item['Average Wind Speed (km/h)']);
-
-            if (temperatureChart) {
-                temperatureChart.destroy();
-            }
-            temperatureChart = new Chart(document.getElementById('temperature-chart'), {
-                type: 'line',
-                data: {
-                    labels: months,
-                    datasets: [{
-                        label: 'Average Temperature (Celsius)',
-                        data: avgTemp,
-                        borderColor: 'red',
-                        fill: false
-                    }]
-                }
-            });
-
-            if (humidityChart) {
-                humidityChart.destroy();
-            }
-            humidityChart = new Chart(document.getElementById('humidity-chart'), {
-                type: 'line',
-                data: {
-                    labels: months,
-                    datasets: [{
-                        label: 'Average Humidity (%)',
-                        data: avgHumidity,
-                        borderColor: 'blue',
-                        fill: false
-                    }]
-                }
-            });
-
-            if (windSpeedChart) {
-                windSpeedChart.destroy();
-            }
-            windSpeedChart = new Chart(document.getElementById('wind-speed-chart'), {
-                type: 'line',
-                data: {
-                    labels: months,
-                    datasets: [{
-                        label: 'Average Wind Speed (km/h)',
-                        data: avgWindSpeed,
-                        borderColor: 'green',
-                        fill: false
-                    }]
-                }
-            });
-
-        }
     </script>
 </body>
+
 </html>

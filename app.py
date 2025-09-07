@@ -1,77 +1,93 @@
 import pandas as pd
 from flask import Flask, jsonify, render_template
+from analysis import get_analysis  # Import the analysis function
 
 app = Flask(__name__)
 
+# --- Load and prepare data once at startup ---
+try:
+    df = pd.read_csv("weekly_weather_data_cleaned.csv")
+    df["Week"] = pd.to_datetime(df["Week"], errors="coerce")
+    df = df.dropna(subset=["Week"])
+    # Add month column for filtering
+    df['MonthName'] = df['Week'].dt.month_name()
+    # Ensure months are sorted chronologically
+    months_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December']
+    df['MonthName'] = pd.Categorical(df['MonthName'], categories=months_order, ordered=True)
+except FileNotFoundError:
+    df = pd.DataFrame()
+    print("WARNING: 'weekly_weather_data_cleaned.csv' not found. The app will not have data.")
+
+# --- Flask Routes ---
+
 @app.route("/")
 def index():
+    """Renders the main HTML page."""
     return render_template("index.html")
 
-@app.route("/data")
-def get_data():
-    # Load CSV
-    df = pd.read_csv("comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv")
+@app.route("/states")
+def get_states():
+    """Returns a list of unique states/regions."""
+    if df.empty:
+        return jsonify({"error": "Data not loaded"}), 500
+    states = sorted(df["Region"].unique().tolist())
+    return jsonify(states)
 
-    # Determine the column to use for states (handle both schemas)
-    state_col = 'State/UT' if 'State/UT' in df.columns else ('Region' if 'Region' in df.columns else None)
-    if state_col is None:
+@app.route("/months/<state>")
+def get_months(state):
+    """Returns a list of months for a given state."""
+    if df.empty:
+        return jsonify({"error": "Data not loaded"}), 500
+    if state not in df["Region"].unique():
+        return jsonify({"error": "State not found"}), 404
+    
+    # Sort by the categorical month name to ensure correct order
+    months = df[df["Region"] == state].sort_values('MonthName')['MonthName'].unique().tolist()
+    return jsonify(months)
+
+@app.route("/weekly_data/<state>/<month>")
+def get_weekly_data(state, month):
+    """Returns weekly weather data for charts for a given state and month."""
+    if df.empty:
+        return jsonify({"error": "Data not loaded"}), 500
+    
+    # Filter the dataframe for the selected state and month
+    filtered_df = df[(df["Region"] == state) & (df["MonthName"] == month)].copy()
+    
+    if filtered_df.empty:
         return jsonify({
-            "error": "Neither 'State/UT' nor 'Region' column found in the dataset.",
-            "available_columns": df.columns.tolist()
-        }), 400
+            "weeks": [], 
+            "avg_temp": [], 
+            "avg_humidity": [], 
+            "avg_wind_speed": []
+        })
 
-    # Filter for specific states
-    states_to_include = [
-        "Assam", "Bihar", "Meghalaya", "Kerala", "Rajasthan",
-        "West Bengal", "Karnataka", "Delhi", "Madhya Pradesh"
-    ]
+    # Format week for chart labels
+    filtered_df["WeekLabel"] = filtered_df["Week"].dt.strftime("Week of %b %d")
 
-    # Only filter if any of the target states exist in the column; otherwise keep all
-    present_states = set(df[state_col].unique())
-    filter_values = [s for s in states_to_include if s in present_states]
-    if filter_values:
-        df = df[df[state_col].isin(filter_values)]
-
-    # Ensure Date exists and is datetime
-    if 'Date' not in df.columns:
-        return jsonify({
-            "error": "Required column 'Date' not found.",
-            "available_columns": df.columns.tolist()
-        }), 400
-
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-    df = df.dropna(subset=['Date'])
-    df['Month'] = df['Date'].dt.month_name()
-
-    # Map from your dataset's column names to output-friendly names
-    column_map = {
-        'Temperature_C': 'Average Temperature (Celsius)',
-        'Humidity_percent': 'Average Humidity (%)',
-        'Wind_Speed_kmh': 'Average Wind Speed (km/h)'
+    result = {
+        "weeks": filtered_df["WeekLabel"].tolist(),
+        "avg_temp": filtered_df["Temperature_C"].tolist(),
+        "avg_humidity": filtered_df["Humidity_percent"].tolist(),
+        "avg_wind_speed": filtered_df["Wind_Speed_kmh"].tolist()
     }
+    return jsonify(result)
 
-    # Verify required numeric columns exist
-    required = [c for c in column_map.keys() if c in df.columns]
-    if not required:
-        return jsonify({
-            "error": "None of the required numeric columns were found.",
-            "expected_any_of": list(column_map.keys()),
-            "available_columns": df.columns.tolist()
-        }), 400
 
-    # Build a working frame with only the columns available
-    use_cols = [state_col, 'Month'] + required
-    work = df[use_cols].copy()
+@app.route("/analysis/<state>")
+def get_state_analysis(state):
+    """Returns EDA results for a given state."""
+    if df.empty:
+        return jsonify({"error": "Data not loaded"}), 500
+    if state not in df["Region"].unique():
+        return jsonify({"error": "State not found"}), 404
+        
+    state_df = df[df["Region"] == state].copy()
+    analysis_data = get_analysis(state_df)
+    
+    return jsonify(analysis_data)
 
-    # Group by state and month, and calculate the average
-    agg_dict = {c: 'mean' for c in required}
-    monthly_avg = work.groupby([state_col, 'Month']).agg(agg_dict).reset_index()
 
-    # Rename columns for output
-    rename_out = {c: column_map[c] for c in required}
-    monthly_avg.rename(columns={state_col: 'State/UT', **rename_out}, inplace=True)
-
-    return jsonify(monthly_avg.to_dict(orient="records"))
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
