@@ -1,53 +1,118 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indian Weather Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>Indian Weather Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+        }
+        #state-select {
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Indian Weather Dashboard</h1>
-        <p>An interactive visualization of weather data across India.</p>
-    </header>
+    <div class="container">
+        <h1>Indian Weather Data</h1>
+        <label for="state-select">Select a State/UT:</label>
+        <select id="state-select">
+        </select>
 
-    <main class="container">
-        <div class="plot-container" id="plot-temp-dist"></div>
-        <div class="plot-container" id="plot-monthly-precip"></div>
-        <div class="plot-container" id="plot-correlation"></div>
-        <div class="plot-container" id="plot-seasonal-variation"></div>
-    </main>
-
-    <footer>
-        <p>Weather Data Visualizer</p>
-    </footer>
+        <div class="charts">
+            <canvas id="temperature-chart"></canvas>
+            <canvas id="humidity-chart"></canvas>
+            <canvas id="wind-speed-chart"></canvas>
+        </div>
+    </div>
 
     <script>
-        $(document).ready(function(){
-            // Load and display the plots
-            $.get('/plot/temp_dist_by_region', function(data){
-                var fig = JSON.parse(data);
-                Plotly.newPlot('plot-temp-dist', fig.data, fig.layout);
+        let weatherData = [];
+        let temperatureChart, humidityChart, windSpeedChart;
+
+        const stateSelect = document.getElementById('state-select');
+
+        fetch('/data')
+            .then(response => response.json())
+            .then(data => {
+                weatherData = data;
+                const states = [...new Set(data.map(item => item['State/UT']))];
+                states.forEach(state => {
+                    const option = document.createElement('option');
+                    option.value = state;
+                    option.textContent = state;
+                    stateSelect.appendChild(option);
+                });
+                updateCharts(states[0]);
             });
 
-            $.get('/plot/monthly_precipitation', function(data){
-                var fig = JSON.parse(data);
-                Plotly.newPlot('plot-monthly-precip', fig.data, fig.layout);
-            });
-
-            $.get('/plot/correlation_heatmap', function(data){
-                var fig = JSON.parse(data);
-                Plotly.newPlot('plot-correlation', fig.data, fig.layout);
-            });
-
-            $.get('/plot/seasonal_temp_variation', function(data){
-                var fig = JSON.parse(data);
-                Plotly.newPlot('plot-seasonal-variation', fig.data, fig.layout);
-            });
+        stateSelect.addEventListener('change', (event) => {
+            updateCharts(event.target.value);
         });
+
+        function updateCharts(selectedState) {
+            const stateData = weatherData.filter(item => item['State/UT'] === selectedState);
+            const months = stateData.map(item => item['Month']);
+            const avgTemp = stateData.map(item => item['Average Temperature (Celsius)']);
+            const avgHumidity = stateData.map(item => item['Average Humidity (%)']);
+            const avgWindSpeed = stateData.map(item => item['Average Wind Speed (km/h)']);
+
+            if (temperatureChart) {
+                temperatureChart.destroy();
+            }
+            temperatureChart = new Chart(document.getElementById('temperature-chart'), {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Average Temperature (Celsius)',
+                        data: avgTemp,
+                        borderColor: 'red',
+                        fill: false
+                    }]
+                }
+            });
+
+            if (humidityChart) {
+                humidityChart.destroy();
+            }
+            humidityChart = new Chart(document.getElementById('humidity-chart'), {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Average Humidity (%)',
+                        data: avgHumidity,
+                        borderColor: 'blue',
+                        fill: false
+                    }]
+                }
+            });
+
+            if (windSpeedChart) {
+                windSpeedChart.destroy();
+            }
+            windSpeedChart = new Chart(document.getElementById('wind-speed-chart'), {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Average Wind Speed (km/h)',
+                        data: avgWindSpeed,
+                        borderColor: 'green',
+                        fill: false
+                    }]
+                }
+            });
+
+        }
     </script>
 </body>
 </html>

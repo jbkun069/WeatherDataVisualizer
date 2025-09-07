@@ -1,51 +1,77 @@
-from flask import Flask, render_template, jsonify
 import pandas as pd
-import plotly.express as px
-import json
-import plotly
+from flask import Flask, jsonify, render_template
 
 app = Flask(__name__)
 
-# Load the cleaned data
-try:
-    df = pd.read_csv('comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv')
-    df['Date'] = pd.to_datetime(df['Date']) # Convert Date to datetime objects
-    print("Successfully loaded the cleaned data.")
-except FileNotFoundError:
-    print("Error: The file 'comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv' was not found.")
-    df = pd.DataFrame() # Create an empty DataFrame if file not found
-
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/data/regions')
-def get_regions():
-    regions = df['Region'].unique().tolist()
-    return jsonify(regions)
+@app.route("/data")
+def get_data():
+    # Load CSV
+    df = pd.read_csv("comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv")
 
-@app.route('/plot/temp_dist_by_region')
-def plot_temp_dist_by_region():
-    fig = px.box(df, x='Region', y='Temperature_C', title='Temperature Distribution by Region')
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # Determine the column to use for states (handle both schemas)
+    state_col = 'State/UT' if 'State/UT' in df.columns else ('Region' if 'Region' in df.columns else None)
+    if state_col is None:
+        return jsonify({
+            "error": "Neither 'State/UT' nor 'Region' column found in the dataset.",
+            "available_columns": df.columns.tolist()
+        }), 400
 
-@app.route('/plot/monthly_precipitation')
-def plot_monthly_precipitation():
-    monthly_precip = df.groupby(df['Date'].dt.to_period('M'))['Precipitation_mm'].sum().reset_index()
-    monthly_precip['Date'] = monthly_precip['Date'].dt.to_timestamp()
-    fig = px.line(monthly_precip, x='Date', y='Precipitation_mm', title='Total Monthly Precipitation')
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # Filter for specific states
+    states_to_include = [
+        "Assam", "Bihar", "Meghalaya", "Kerala", "Rajasthan",
+        "West Bengal", "Karnataka", "Delhi", "Madhya Pradesh"
+    ]
 
-@app.route('/plot/correlation_heatmap')
-def plot_correlation_heatmap():
-    numeric_df = df.select_dtypes(include=['number'])
-    fig = px.imshow(numeric_df.corr(), text_auto=True, aspect="auto", title='Correlation Heatmap')
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # Only filter if any of the target states exist in the column; otherwise keep all
+    present_states = set(df[state_col].unique())
+    filter_values = [s for s in states_to_include if s in present_states]
+    if filter_values:
+        df = df[df[state_col].isin(filter_values)]
 
-@app.route('/plot/seasonal_temp_variation')
-def plot_seasonal_temp_variation():
-    fig = px.violin(df, x='Season', y='Temperature_C', title='Seasonal Temperature Variations')
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # Ensure Date exists and is datetime
+    if 'Date' not in df.columns:
+        return jsonify({
+            "error": "Required column 'Date' not found.",
+            "available_columns": df.columns.tolist()
+        }), 400
 
-if __name__ == '__main__':
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df = df.dropna(subset=['Date'])
+    df['Month'] = df['Date'].dt.month_name()
+
+    # Map from your dataset's column names to output-friendly names
+    column_map = {
+        'Temperature_C': 'Average Temperature (Celsius)',
+        'Humidity_percent': 'Average Humidity (%)',
+        'Wind_Speed_kmh': 'Average Wind Speed (km/h)'
+    }
+
+    # Verify required numeric columns exist
+    required = [c for c in column_map.keys() if c in df.columns]
+    if not required:
+        return jsonify({
+            "error": "None of the required numeric columns were found.",
+            "expected_any_of": list(column_map.keys()),
+            "available_columns": df.columns.tolist()
+        }), 400
+
+    # Build a working frame with only the columns available
+    use_cols = [state_col, 'Month'] + required
+    work = df[use_cols].copy()
+
+    # Group by state and month, and calculate the average
+    agg_dict = {c: 'mean' for c in required}
+    monthly_avg = work.groupby([state_col, 'Month']).agg(agg_dict).reset_index()
+
+    # Rename columns for output
+    rename_out = {c: column_map[c] for c in required}
+    monthly_avg.rename(columns={state_col: 'State/UT', **rename_out}, inplace=True)
+
+    return jsonify(monthly_avg.to_dict(orient="records"))
+
+if __name__ == "__main__":
     app.run(debug=True)
