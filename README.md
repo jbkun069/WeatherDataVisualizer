@@ -252,6 +252,4 @@ app.run(host='127.0.0.1', port=5001)
 - Include type hints for function parameters
 - Write unit tests for new features
 
-## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
