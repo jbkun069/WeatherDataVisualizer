@@ -49,7 +49,29 @@ def get_charts(state, month):
     if df.empty:
         return jsonify({"error": "Data not loaded"}), 500
     
-    filtered_df = df[(df["Region"] == state) & (df["MonthName"] == month)].copy()
+    # Get all data for the state to determine axis limits for consistency
+    state_df = df[df["Region"] == state].copy()
+    if state_df.empty:
+        return jsonify({"error": "State not found"}), 404
+
+    # Calculate y-axis limits with a 10% buffer for better visualization
+    temp_min = state_df["Temperature_C"].min()
+    temp_max = state_df["Temperature_C"].max()
+    temp_range = temp_max - temp_min
+    temp_ylim = (temp_min - 0.1 * temp_range, temp_max + 0.1 * temp_range)
+
+    humidity_min = state_df["Humidity_percent"].min()
+    humidity_max = state_df["Humidity_percent"].max()
+    humidity_range = humidity_max - humidity_min
+    humidity_ylim = (humidity_min - 0.1 * humidity_range, humidity_max + 0.1 * humidity_range)
+
+    wind_min = state_df["Wind_Speed_kmh"].min()
+    wind_max = state_df["Wind_Speed_kmh"].max()
+    wind_range = wind_max - wind_min
+    wind_ylim = (wind_min - 0.1 * wind_range, wind_max + 0.1 * wind_range)
+
+    # Filter for the specific month
+    filtered_df = state_df[state_df["MonthName"] == month].copy()
     
     if filtered_df.empty:
         return jsonify({
@@ -62,11 +84,11 @@ def get_charts(state, month):
     weeks = filtered_df["WeekLabel"].tolist()
     
     temp_chart = generate_line_chart(weeks, filtered_df["Temperature_C"].tolist(), 
-                                     f"Average Temperature in {state} ({month})", "Temperature (°C)")
+                                     f"Average Temperature in {state} ({month})", "Temperature (°C)", ylim=temp_ylim)
     humidity_chart = generate_line_chart(weeks, filtered_df["Humidity_percent"].tolist(), 
-                                         f"Average Humidity in {state} ({month})", "Humidity (%)")
+                                         f"Average Humidity in {state} ({month})", "Humidity (%)", ylim=humidity_ylim)
     wind_chart = generate_line_chart(weeks, filtered_df["Wind_Speed_kmh"].tolist(), 
-                                     f"Average Wind Speed in {state} ({month})", "Wind Speed (km/h)")
+                                     f"Average Wind Speed in {state} ({month})", "Wind Speed (km/h)", ylim=wind_ylim)
     
     return jsonify({
         "temp_chart": temp_chart,
