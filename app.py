@@ -3,6 +3,7 @@ from flask import Flask, jsonify, render_template
 from analysis import get_analysis
 from visualization import generate_line_chart
 import matplotlib
+import calendar
 matplotlib.use('Agg')
 
 app = Flask(__name__)
@@ -12,8 +13,8 @@ try:
     df["Week"] = pd.to_datetime(df["Week"], errors="coerce")
     df = df.dropna(subset=["Week"])
     df['MonthName'] = df['Week'].dt.month_name()
-    months_order = ['January', 'February', 'March', 'April', 'May', 'June', 
-                    'July', 'August', 'September', 'October', 'November', 'December']
+    # Dynamically generate month order to avoid hardcoding
+    months_order = list(calendar.month_name)[1:]
     df['MonthName'] = pd.Categorical(df['MonthName'], categories=months_order, ordered=True)
 except FileNotFoundError:
     df = pd.DataFrame()

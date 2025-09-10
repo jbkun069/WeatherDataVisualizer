@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import calendar
 
 def get_analysis(df: pd.DataFrame) -> dict:
     """
@@ -54,11 +55,8 @@ def get_analysis(df: pd.DataFrame) -> dict:
 
     # --- Monthly Averages ---
     df["Month"] = df["Week"].dt.month_name()
-    # Define the correct order of months
-    months_order = [
-        'January', 'February', 'March', 'April', 'May', 'June', 
-        'July', 'August', 'September', 'October', 'November', 'December'
-    ]
+    # Dynamically generate month order
+    months_order = list(calendar.month_name)[1:]
     # Use reindex to sort the monthly averages
     monthly_avg = df.groupby("Month").agg({
         "Temperature_C": "mean",
