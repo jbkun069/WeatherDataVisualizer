@@ -142,8 +142,6 @@ Kerala,2024-01-01,28.7,78.1,8.9
 Delhi,2024-01-01,15.2,52.4,15.6
 ```
 
-## 🌐 API Endpoints
-
 
 ### Core Routes
 - `GET /` - Main dashboard page
@@ -209,15 +207,7 @@ def custom_analysis(df):
 ```
 
 ## 🔧 Configuration
-
-### Environment Variables
-Create a `.env` file for configuration:
-```env
-FLASK_ENV=development
-FLASK_DEBUG=True
-SECRET_KEY=your-secret-key
-DATA_FILE_PATH=weekly_weather_data_cleaned.csv
-```
+``
 
 ### Data Generation
 Generate new weather data using:
