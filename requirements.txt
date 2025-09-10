@@ -1,0 +1,15 @@
+Flask==2.3.3
+
+pandas==2.1.1
+numpy==1.25.2
+
+matplotlib==3.7.2
+seaborn==0.12.2
+
+# Additional Flask dependencies (automatically installed with Flask but explicitly listed for clarity)
+Werkzeug==2.3.7
+Jinja2==3.1.2
+MarkupSafe==2.1.3
+itsdangerous==2.1.2
+click==8.1.7
+

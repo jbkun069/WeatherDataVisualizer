@@ -6,21 +6,21 @@ A comprehensive Flask-based web application for analyzing and visualizing Indian
 
 ### 📊 Interactive Visualizations
 - **Temperature Analysis**: Line charts showing temperature trends over time
-- **Humidity Patterns**: Interactive humidity data visualization
-- **Wind Speed Analysis**: Real-time wind speed monitoring
+- **Humidity Patterns**: Interactive humidity data visualization  
+- **Wind Speed Analysis**: Wind speed monitoring by week
 - **Regional Comparisons**: State-wise weather data comparison
 
 ### 🎯 Data Analytics
 - Statistical analysis of weather extremes (hottest, coldest, windiest weeks)
-- Monthly and seasonal trend analysis
+- Monthly trend analysis with categorical ordering
 - Comprehensive weather summary statistics
 - Real-time data filtering and aggregation
 
 ### 🖥️ Modern UI/UX
-- Responsive full-screen dashboard design
+- Responsive dashboard design with CSS Grid/Flexbox
 - Clean, professional interface with Inter font family
 - Real-time loading indicators and error handling
-- Accessible design with ARIA labels
+- Server-side chart generation with base64 encoding
 
 ## 🛠️ Technology Stack
 
@@ -28,11 +28,13 @@ A comprehensive Flask-based web application for analyzing and visualizing Indian
 - **Flask**: Web framework for Python
 - **Pandas**: Data manipulation and analysis
 - **NumPy**: Numerical computing
+- **Matplotlib**: Plotting and visualization
+- **Seaborn**: Statistical data visualization
 
 ### Frontend
-- **Chart.js**: Interactive chart library
 - **HTML5/CSS3**: Modern web standards
 - **Vanilla JavaScript**: Client-side interactivity
+- **CSS Grid/Flexbox**: Responsive layout
 
 ### Data Processing
 - **CSV**: Weather data storage format
@@ -46,16 +48,37 @@ WeatherDataVisualization/
 ├── analysis.py                     # Data analysis functions
 ├── data_cleaning.py                # Data preprocessing utilities
 ├── visualization.py                # Chart generation logic
+├── requirements.txt                # Python dependencies
+├── weekly_weather_data.csv         # Raw weather data
+├── weekly_weather_data_cleaned.csv # Processed weather data
 ├── static/
 │   └── styles.css                  # Application styling
 ├── templates/
 │   └── index.html                  # Main dashboard template
-├── .venv/                          # Virtual environment
-├── comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv
+├── data/
+│   └── generate_data.py            # Data generation script
+├── __pycache__/                    # Python cache files
 └── README.md                       # Project documentation
 ```
 
-## 🚀 Installation & Setup
+## � Data Pipeline
+
+### Data Generation
+The project includes a synthetic weather data generator (`data/generate_data.py`) that creates realistic weather patterns for all Indian states and Union Territories.
+
+### Data Cleaning
+The `data_cleaning.py` module handles:
+- Missing value imputation
+- Outlier detection and handling
+- Date format standardization
+- Feature engineering (Wind categories, Heatwave flags, Comfort index)
+
+### Data Processing
+- Weekly aggregation of weather metrics
+- Monthly categorization with proper ordering
+- Statistical analysis and extreme value detection
+
+## �🚀 Installation & Setup
 
 ### Prerequisites
 - Python 3.8+
@@ -85,7 +108,7 @@ source .venv/bin/activate
 
 ### 4. Install Dependencies
 ```bash
-pip install flask pandas numpy flask-caching flask-cors
+pip install -r requirements.txt
 ```
 
 ### 5. Run Application
@@ -106,12 +129,20 @@ The application expects weather data in CSV format with the following columns:
 | Column | Description | Type |
 |--------|-------------|------|
 | `Region` | Indian state/UT name | String |
-| `Date` | Date of measurement | DateTime |
+| `Week` | Week date (YYYY-MM-DD) | DateTime |
 | `Temperature_C` | Temperature in Celsius | Float |
 | `Humidity_percent` | Humidity percentage | Float |
 | `Wind_Speed_kmh` | Wind speed in km/h | Float |
-| `Precipitation_mm` | Precipitation in mm | Float |
-| `Season` | Seasonal classification | String |
+
+### Sample Data
+```csv
+Region,Week,Temperature_C,Humidity_percent,Wind_Speed_kmh
+Rajasthan,2024-01-01,18.5,45.2,12.3
+Kerala,2024-01-01,28.7,78.1,8.9
+Delhi,2024-01-01,15.2,52.4,15.6
+```
+
+## 🌐 API Endpoints
 
 
 ### Core Routes
@@ -119,12 +150,7 @@ The application expects weather data in CSV format with the following columns:
 - `GET /states` - List all available states/UTs
 - `GET /months/<state>` - Get months with data for specific state
 - `GET /analysis/<state>` - Statistical analysis for specific state
-- `GET /weekly_data/<state>/<month>` - Weekly data for visualization
-
-### Data Processing Routes
-- `GET /api/data` - Filtered weather data with query parameters
-- `GET /api/health` - Application health check
-- `GET /api/states/<region>` - States within specific region
+- `GET /charts/<state>/<month>` - Generate charts for state and month
 
 ## 📈 Usage Examples
 
@@ -134,10 +160,17 @@ The application expects weather data in CSV format with the following columns:
 3. **Select Month**: Choose specific month for detailed visualization
 4. **Interactive Charts**: Hover and interact with temperature, humidity, and wind speed charts
 
-### Advanced Filtering
+### Advanced Usage
 ```javascript
-// Filter data by region and date range
-fetch('/api/data?region=North&start_date=2024-01-01&end_date=2024-12-31')
+// Example: Fetch states list
+fetch('/states')
+    .then(response => response.json())
+    .then(states => console.log(states));
+
+// Example: Get analysis for a specific state
+fetch('/analysis/Delhi')
+    .then(response => response.json())
+    .then(data => console.log(data));
 ```
 
 ### Statistical Analysis
@@ -156,13 +189,15 @@ Modify `static/styles.css` to customize:
 - Responsive breakpoints
 
 ### Charts
-Update chart configurations in `index.html`:
-```javascript
-const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    // Custom chart options
-};
+Charts are generated server-side using Matplotlib and Seaborn:
+```python
+# Example: Generate temperature chart
+temp_chart = generate_line_chart(
+    weeks, 
+    temperatures, 
+    "Temperature Trend", 
+    "Temperature (°C)"
+)
 ```
 
 ### Data Processing
@@ -181,12 +216,26 @@ Create a `.env` file for configuration:
 FLASK_ENV=development
 FLASK_DEBUG=True
 SECRET_KEY=your-secret-key
-DATA_FILE_PATH=path/to/weather/data.csv
+DATA_FILE_PATH=weekly_weather_data_cleaned.csv
+```
+
+### Data Generation
+Generate new weather data using:
+```bash
+cd data
+python generate_data.py
+```
+
+### Data Cleaning
+Clean raw data using:
+```bash
+python data_cleaning.py
 ```
 
 ### Data Sources
-- Primary: `comprehensive_indian_weather_data_2024_all_states_uts_cleaned.csv`
-- Backup: Configure alternative data sources in `app.py`
+- Primary: `weekly_weather_data_cleaned.csv`
+- Raw data: `weekly_weather_data.csv`
+- Data generation: `data/generate_data.py`
 
 ## 🚨 Troubleshooting
 
@@ -194,7 +243,7 @@ DATA_FILE_PATH=path/to/weather/data.csv
 
 **1. Module Not Found Errors**
 ```bash
-pip install flask flask-caching flask-cors pandas numpy
+pip install -r requirements.txt
 ```
 
 **2. Data File Not Found**
@@ -202,8 +251,9 @@ pip install flask flask-caching flask-cors pandas numpy
 - Check file permissions and path
 
 **3. Charts Not Loading**
-- Verify internet connection (Chart.js loads from CDN)
 - Check browser console for JavaScript errors
+- Ensure matplotlib backend is properly configured
+- Verify base64 image encoding is working
 
 **4. Port Already in Use**
 ```bash
