@@ -21,6 +21,7 @@ A comprehensive Flask-based web application for analyzing and visualizing Indian
 - Clean, professional interface with Inter font family
 - Real-time loading indicators and error handling
 - Server-side chart generation with base64 encoding
+- Modular JavaScript architecture with separate files
 
 ## 🛠️ Technology Stack
 
@@ -33,8 +34,9 @@ A comprehensive Flask-based web application for analyzing and visualizing Indian
 
 ### Frontend
 - **HTML5/CSS3**: Modern web standards
-- **Vanilla JavaScript**: Client-side interactivity
+- **Vanilla JavaScript**: Client-side interactivity (dashboard.js)
 - **CSS Grid/Flexbox**: Responsive layout
+- **Fetch API**: Asynchronous data loading
 
 ### Data Processing
 - **CSV**: Weather data storage format
@@ -52,7 +54,8 @@ WeatherDataVisualization/
 ├── weekly_weather_data.csv         # Raw weather data
 ├── weekly_weather_data_cleaned.csv # Processed weather data
 ├── static/
-│   └── styles.css                  # Application styling
+│   ├── styles.css                  # Application styling
+│   └── dashboard.js                # Dashboard JavaScript functionality
 ├── templates/
 │   └── index.html                  # Main dashboard template
 ├── data/
@@ -171,6 +174,21 @@ fetch('/analysis/Delhi')
     .then(data => console.log(data));
 ```
 
+### Frontend Customization
+Modify `static/dashboard.js` to extend functionality:
+```javascript
+// Example: Add custom error handling
+function handleFetchError(error, context) {
+    console.error(`Error in ${context}:`, error);
+    // Add custom error handling logic
+}
+
+// Example: Add loading indicators
+function showLoading(elementId) {
+    document.getElementById(elementId).innerHTML = 'Loading...';
+}
+```
+
 ### Statistical Analysis
 ```python
 # Get comprehensive analysis for a state
@@ -178,6 +196,15 @@ analysis_data = get_analysis(filtered_dataframe)
 ```
 
 ## 🎨 Customization
+
+### JavaScript Architecture
+The dashboard functionality is organized in `static/dashboard.js` with modular functions:
+- `loadStates()` - Fetches and populates state dropdown
+- `loadAnalysis(state)` - Loads statistical analysis for selected state
+- `loadMonths(state)` - Fetches available months for selected state
+- `loadCharts(state, month)` - Generates and displays charts
+- `createStatCard()` - Helper function for creating stat cards
+- `setupEventListeners()` - Configures all event handlers
 
 ### Styling
 Modify `static/styles.css` to customize:
