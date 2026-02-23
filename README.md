@@ -1,5 +1,7 @@
 # Indian Weather Data Visualization Dashboard
 
+[currently project abandoned]
+
 A comprehensive Flask-based web application for analyzing and visualizing Indian weather data with interactive charts and statistical insights.
 
 ## 🌟 Features
